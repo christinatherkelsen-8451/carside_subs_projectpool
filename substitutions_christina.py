@@ -33,6 +33,8 @@ from effodata import ACDS
 
 from pyspark.sql import functions as f
 
+acds = ACDS(use_sample_mart=False)
+
 # COMMAND ----------
 
 # date selection
@@ -147,6 +149,7 @@ ocado_with_subs_df = effosubs.get_ocado_fulfillment_events(start_date=START_DATE
 # filter out rows with ocado denoted by division 540
 customer_response_df = (customer_response_df_with_ocado
                 .where(f.col('division') != 540)
+                .withColumnRenamed('store_code','cust_resp_store_code')
                 )
 
 # COMMAND ----------
@@ -228,7 +231,7 @@ harvester_with_2wc_flag = (
   .withColumn('2Wc_accept_reject_record',
               f.when(f.col('status').isNull(), f.lit('NO'))
               .otherwise(f.lit('YES')))
-  .select(['order_no', 'ordered_upc', 'picked_upc','status','2Wc_accept_reject_record'])
+  .select(['order_no', 'ordered_upc', 'picked_upc','status','2Wc_accept_reject_record','store_code'])
 )
 
 # checking counts
@@ -255,6 +258,7 @@ focus_ordered_columns = [
   'sub_upc', 
   'status',
   'sub_status',
+  'store_code',
   'allow_substitutes',
  'number_of_subs',
  'substitute_method',
@@ -352,9 +356,49 @@ print(f"{count_reject_mismatch} records, {round((count_reject_mismatch/count_non
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ### Next Steps
-# MAGIC Examine mismatched accept/reject info: which is more reliable? clickstream or effosubs? Look at ACDS transaction data
+# MAGIC %md 
+# MAGIC ### Join with ACDS
+# MAGIC On an inner join with transaction data mapping picked_upc (from effo subs data) to gtin_no, we have all transactions accounted for. This matched count leads to the conclusion that effo data accept/reject record is more reliable than the clickstream accepted/rejected record.
+
+# COMMAND ----------
+
+# look at records with mismatched responses
+# note: all price difference are -1.0
+non_match_df = (
+  yes_2wc_yes_clicks.where(((f.col('status') == 'Accept') 
+                          & (f.col('sub_status') == 'rejected'))
+                           |
+                           ((f.col('status') == 'Reject') 
+                          & (f.col('sub_status') == 'accepted'))
+                        )
+)
+
+non_match_df.count()
+
+# COMMAND ----------
+
+# look at transactions
+txns = acds.get_transactions(
+  start_date=START_DATE,
+  end_date=END_DATE,
+)
+
+# txns.display()
+
+# COMMAND ----------
+
+# joined records with mismtached accept/reject to transaction data
+non_match_response_join_acds = (
+  non_match_df.join(other=txns, on=[
+    non_match_df.order_no==txns.order_no, 
+    non_match_df.picked_upc==txns.gtin_no, 
+    non_match_df.store_code==txns.store_code], how='inner')
+)
+
+# COMMAND ----------
+
+# confirm count is same as non_match_df
+non_match_response_join_acds.count()
 
 # COMMAND ----------
 
