@@ -49,8 +49,8 @@ acds = ACDS(use_sample_mart=False)
 
 # date selection
 # matching dates on pulled clickstream data in directory
-START_DATE = "2024-02-01"
-END_DATE = "2024-02-29"
+START_DATE = "2023-08-01"
+END_DATE = "2023-08-31"
 
 # COMMAND ----------
 
@@ -60,10 +60,10 @@ END_DATE = "2024-02-29"
 
 # COMMAND ----------
 
-directory = "abfss://users@sa8451dbxadhocprd.dfs.core.windows.net/d516087/clickstream_subs_exploratory"
+directory = "abfss://sandbox@sa8451learningdev.dfs.core.windows.net/users/c744990/project_pool"
 
-clicks_path = os.path.join(directory, "clicks_sample")
-product_path = os.path.join(directory, "product_table_sample")
+clicks_path = os.path.join(directory, "clicks_sample_aug_2023")
+product_path = os.path.join(directory, "product_table_sample_aug_2023")
 
 # read clickstream files
 clicks_df = spark.read.parquet(clicks_path, header=True, inferSchema=True)
@@ -73,7 +73,7 @@ clicks_product_df = spark.read.parquet(product_path, header=True, inferSchema=Tr
 
 # MAGIC %md
 # MAGIC ### Does 'effo_channel' indicate a device used for carside data?
-# MAGIC No, (for February 2024 data) 'effo_channel' only indicates user activity in the app or in a web browser. There is no 'effo_channel' unique to the harvester device/carside pickup.
+# MAGIC No, (for August 2023 data) 'effo_channel' only indicates user activity in the app or in a web browser. There is no 'effo_channel' unique to the harvester device/carside pickup.
 
 # COMMAND ----------
 
@@ -84,7 +84,7 @@ clicks_df.select("effo_channel").distinct().show()
 
 # MAGIC %md
 # MAGIC ### How many records in the clickstream data include accepted/rejected information?
-# MAGIC For February 2024 data, only 40% of clickstream data includes accepted/rejected information.
+# MAGIC For Augus 2023 data, 50.6% of clickstream data includes accepted/rejected information.
 
 # COMMAND ----------
 
@@ -162,6 +162,8 @@ customer_response_df = (customer_response_df_with_ocado
                 .withColumnRenamed('store_code','cust_resp_store_code')
                 )
 
+harvester_df.count()
+
 # COMMAND ----------
 
 # MAGIC %md
@@ -178,16 +180,14 @@ customer_response_df = (customer_response_df_with_ocado
 # MAGIC
 # MAGIC * There are entries in 2WC, customer_response_df (text accept/reject data) that are not being matched with Harvester data. 
 # MAGIC * Impression was that every instance in customer_response_df should have a match in harvester_df (then we look to clickstream to find complement).
-# MAGIC * 7.85% of customer_response_df records with NO harvester data
-# MAGIC * 4.16% of customer_response_df records that are ocado events still in dataframe.
+# MAGIC * 7.08% of customer_response_df records with NO harvester data
+# MAGIC * 3.89% of customer_response_df records that are ocado events still in dataframe.
 # MAGIC
 # MAGIC
-# MAGIC * harvester_df count: 2,060,810 (February 2024)
-# MAGIC   * customer_response_df count: 1,459,646 (February 2024)
-# MAGIC   * inner join on ['order_no', 'ordered_upc', 'picked_upc']: 1,345,041
-# MAGIC   * Harvester records without Customer Response 2WC data: 715,769
-# MAGIC   * Customer Response 2WC instances not matched in Harvester: 114,605
-# MAGIC   * 60,675 of those are identified as Ocado events, this is why they would not be in Harvester (by default, Harvester df does not include Ocado)
+# MAGIC * harvester_df count: 3,131,002 (August 2023)
+# MAGIC   * customer_response_df count: 2,164,096 (August 2023)
+# MAGIC   * inner join on ['order_no', 'ordered_upc', 'picked_upc']: 2,010,794
+# MAGIC   * Harvester records without Customer Response 2WC data: 1,120,208
 
 # COMMAND ----------
 
@@ -195,6 +195,8 @@ customer_response_df = (customer_response_df_with_ocado
 ocado_innerjoin_customer_response = (
   customer_response_df.join(other=ocado_with_subs_df, on=['order_no', 'ordered_upc', 'picked_upc'], how='inner')
 )
+
+ocado_innerjoin_customer_response.count()
 
 # COMMAND ----------
 
@@ -232,7 +234,7 @@ print(f"{round((ocado_innerjoin_customer_response.count()/customer_response_df.c
 # MAGIC %md 
 # MAGIC ### Harvester Records without Customer Response
 # MAGIC
-# MAGIC 34.7% of harvester data **do not** have 2WC record of accept/reject
+# MAGIC 35.8% of harvester data **do not** have 2WC record of accept/reject
 
 # COMMAND ----------
 
@@ -308,12 +310,12 @@ print(f"{round((no_2wc_yes_clicks.count()/no_2wc.count())*100,2)}% of Harvester 
 # MAGIC %md 
 # MAGIC ### **Contradictions** in response data: clickstream vs. effo_subs (2WC)
 # MAGIC
-# MAGIC Unexpected discovery: (February 2024) harvester (2WC) records with accept/reject data that **do not** match accepted/rejected data in clickstream.
+# MAGIC Unexpected discovery: (August 2023) harvester (2WC) records with accept/reject data that **do not** match accepted/rejected data in clickstream.
 # MAGIC
-# MAGIC For February 2024:
-# MAGIC * 15.48% of all 2WC customer response ('status') records do NOT match with clickstream 'sub_status'
-# MAGIC * 207,211 records, which is 99.99% of 2WC records that do NOT match with clickstream 'sub_status', are recorded as 2WC 'accept' (and as 'rejected' in clicktream)
-# MAGIC * 16 records, which is 0.01% of 2WC records that do NOT match with clickstream 'sub_status', are recorded as 2WC 'reject' (and as 'accepted') in clickstream
+# MAGIC For August 2023:
+# MAGIC * 15.72% of all 2WC customer response ('status') records do NOT match with clickstream 'sub_status'
+# MAGIC * 314,898 records, which is 99.99% of 2WC records that do NOT match with clickstream 'sub_status', are recorded as 2WC 'accept' (and as 'rejected' in clicktream)
+# MAGIC * 30 records, which is 0.01% of 2WC records that do NOT match with clickstream 'sub_status', are recorded as 2WC 'reject' (and as 'accepted') in clickstream
 
 # COMMAND ----------
 
@@ -409,94 +411,3 @@ non_match_response_join_acds = (
 
 # confirm count is same as non_match_df
 non_match_response_join_acds.count()
-
-# COMMAND ----------
-
-# join harvester data with missing response to txns, see if answer is there
-
-no_2wc_join_acds = (
-  no_2wc.join(other=txns, on=[
-    no_2wc.order_no==txns.order_no, 
-    no_2wc.picked_upc==txns.gtin_no, 
-    no_2wc.store_code==txns.store_code], how='inner')
-)
-
-# COMMAND ----------
-
-no_2wc_join_acds.count()
-
-# COMMAND ----------
-
-no_2wc_join_acds.display()
-
-# COMMAND ----------
-
-no_2wc.count()
-
-# COMMAND ----------
-
-print(f"{no_2wc_join_acds.count()}, or {round((no_2wc_join_acds.count()/no_2wc.count())*100,2)}% harvester records without accept/reject information have a match in acds transaction data, indicating acceptance (?)")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## UPC mapping w/Product Table to match dataframes
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC
-# MAGIC ### Does not seem to be a mismatched UPC issue
-# MAGIC
-# MAGIC Unsure if type of UPC is consistent across harvester and clickstream data. Here we will do the following:
-# MAGIC 1. Attempt to confirm that Harvester data is with GTIN (con_upc_no) by joining with Product Dimension on upc = con_upc_no, making sure all rows have a match
-# MAGIC 2. Explore whether clickstream is by GTIN (con_upc_no) or Base UPC (bas_con_upc_no) by joining with Product Dimension on both and seeing how many rows have a match
-
-# COMMAND ----------
-
-product_table = acds.products
-
-# first check harvester upcs with product table
-# do they match with gtin?
-# checking ordered_upc by checking match for all listed with gtin
-harvester_upc_map_ordered = (
-  harvester_with_2wc_flag.join(other=product_table, on=[harvester_with_2wc_flag.ordered_upc==product_table.con_upc_no], how='inner')
-  .select(['ordered_upc', 'con_upc_no', 'bas_con_upc_no'])
-)
-
-# checking picked_upc by checking match for all listed with gtin
-harvester_upc_map_picked = (
-  harvester_with_2wc_flag.join(other=product_table, on=[harvester_with_2wc_flag.picked_upc==product_table.con_upc_no], how='inner')
-  .select(['picked_upc', 'con_upc_no', 'bas_con_upc_no'])
-)
-
-# check counts
-print(f"{harvester_with_2wc_flag.count()} harvester records")
-print(f"{harvester_upc_map_ordered.count()} harvester records, matched to product table on ordered_upc = gtin")
-print(f"{harvester_upc_map_picked.count()} harvester records, matched to product table on picked_upc = gtin")
-
-# COMMAND ----------
-
-# second check clickstream upcs with product table
-# do they match with gtin?
-# checking clicks_df_subs.upc by checking match for all listed with gtin
-clicks_upc_map_ordered = (
-  clicks_df_subs.join(other=product_table, on=[clicks_df_subs.upc==product_table.con_upc_no], how='inner')
-  .select(['upc', 'con_upc_no', 'bas_con_upc_no'])
-)
-
-
-# #TODO change placement of array extraction to before joining with harvester
-# clicks_upc_map_subbed = (
-#   harvester_with_clicks.join(other=product_table, on=[harvester_with_clicks.sub_upc_1==product_table.con_upc_no], how='inner')
-#   .select(['sub_upc_1', 'con_upc_no', 'bas_con_upc_no'])
-# )
-
-# check counts
-print(f"{clicks_df_subs.count()} clickstream records")
-print(f"{clicks_upc_map_ordered.count()} clickstream records, matched to product table on clicks_df_subs.upc = gtin")
-# print(f"{clicks_upc_map_subbed.count()} clicks(with harvester) records, matched to product table on sub_upc_1 = gtin")
-
-# COMMAND ----------
-
-
